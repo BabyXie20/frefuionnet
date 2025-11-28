@@ -321,6 +321,30 @@ class TransformerBlock_EA(nn.Module):
 # 3D LKA
 #
 #########################
+class TorchResBlock3D(nn.Module):
+    """A lightweight 3D residual block implemented purely with torch layers."""
+
+    def __init__(self, channels: int) -> None:
+        super().__init__()
+        self.conv1 = nn.Sequential(
+            nn.Conv3d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm3d(channels),
+            nn.LeakyReLU(0.01, inplace=True),
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv3d(channels, channels, kernel_size=3, stride=1, padding=1, bias=False),
+            nn.BatchNorm3d(channels),
+        )
+        self.act = nn.LeakyReLU(0.01, inplace=True)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        residual = x
+        out = self.conv1(x)
+        out = self.conv2(out)
+        out = out + residual
+        return self.act(out)
+
+
 class TransformerBlock_3D_LKA(nn.Module):
     """
     A transformer block, based on: "Shaker et al.,
@@ -361,9 +385,7 @@ class TransformerBlock_3D_LKA(nn.Module):
         self.norm = nn.LayerNorm(hidden_size)
         self.gamma = nn.Parameter(1e-6 * torch.ones(hidden_size), requires_grad=True)
         self.epa_block = LKA_Attention3d(d_model=hidden_size)
-        self.conv51 = UnetResBlock(
-            3, hidden_size, hidden_size, kernel_size=3, stride=1, norm_name="batch"
-        )
+        self.conv51 = TorchResBlock3D(hidden_size)
         self.conv8 = nn.Sequential(
             nn.Dropout3d(0.1, False), nn.Conv3d(hidden_size, hidden_size, 1)
         )
